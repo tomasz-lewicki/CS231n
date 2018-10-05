@@ -148,25 +148,29 @@ def svm_loss_vectorized(W, X, y, reg):
   dW = np.zeros(W.shape) # initialize the gradient as zero
 
   scores = W.T @ X.T
-  margins = np.maximum(0, (scores - scores[:, y] +1))
-  print(scores[:, y].shape)
-  print((scores - scores[:, y])[:][0])
+  correct_scores = scores[y, np.arange(scores.shape[1])]
+  margins = np.maximum(0, (scores - correct_scores +1))
   margins[y, np.arange(num_train)] = 0
+
   loss = np.sum(margins)
-  
-    
-  margins[y] = 0
-#     loss += np.sum(margins)
-#     wrong_pred[i] = np.sum(margins != 0)
-    
-#     dW[:, margins>0] += np.expand_dims(X[i], axis=1)
-    
-#     dW[:,y[i]] -= (wrong_pred[i]) * X[i]
-    
-    
   loss /= num_train
   loss += reg * np.sum(W * W)
-      
+    
+    
+  sum_all_images = np.sum(X, axis=0)
+  dW += np.expand_dims(sum_all_images, axis=1)
+  
+  #substract the right labeled -n*X[i]
+  mask = np.zeros(margins.shape)
+  mask[margins>0] = 1
+  print(mask)
+
+  no_wrong = np.sum(mask, axis=0)
+  print(no_wrong.shape)
+  mask[y, np.arange(num_train)] = - no_wrong 
+
+  dW = (mask @ X).T    
+    
   dW /= num_train
   dW += reg*W # regularize the weights
   
