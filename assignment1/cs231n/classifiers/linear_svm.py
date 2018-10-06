@@ -163,10 +163,8 @@ def svm_loss_vectorized(W, X, y, reg):
   #substract the right labeled -n*X[i]
   mask = np.zeros(margins.shape)
   mask[margins>0] = 1
-  print(mask)
-
+    
   no_wrong = np.sum(mask, axis=0)
-  print(no_wrong.shape)
   mask[y, np.arange(num_train)] = - no_wrong 
 
   dW = (mask @ X).T    
