@@ -22,14 +22,45 @@ def softmax_loss_naive(W, X, y, reg):
   # Initialize the loss and gradient to zero.
   loss = 0.0
   dW = np.zeros_like(W)
-
+  num_classes = W.shape[1]
+  num_images = X.shape[0]
   #############################################################################
   # TODO: Compute the softmax loss and its gradient using explicit loops.     #
   # Store the loss in loss and the gradient in dW. If you are not careful     #
   # here, it is easy to run into numeric instability. Don't forget the        #
   # regularization!                                                           #
   #############################################################################
-  pass
+ 
+  scores = W.T @ X.T
+  e = np.e
+    
+  for i in range(num_images):
+    
+    fy = scores[y[i]][i]
+    f = scores[:,i]
+    mx = np.max(f)
+    f -= mx
+    fy -= mx
+    loss -= np.log(e**fy/np.sum(e**f))
+    
+  loss /= num_images
+  loss += reg * np.sum(W * W)
+  scores = W.T @ X.T
+
+
+  e = np.e
+  scores_exp = e**scores
+  probs = np.zeros_like(scores)
+    
+  for i in range(num_images):
+    sum_of_all_scores = np.sum(scores_exp[:,i])
+    probs[:, i] = scores_exp[:, i]/sum_of_all_scores
+    
+    dW += np.outer(X[i], probs[:,i])
+    print(np.zeros_like(dW) += 1)
+    #dW[y[i],i] -= 1
+    #print(np.sum(probs[:,i])) check if probabilites sum to 1
+
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
