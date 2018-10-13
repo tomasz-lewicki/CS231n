@@ -85,14 +85,21 @@ def softmax_loss_vectorized(W, X, y, reg):
   e = np.e
   scores = W.T @ X.T
   scores_exp = e**scores
+
+  loss = - np.sum( np.log(scores_exp[y, range(num_train)]/np.sum(scores_exp, axis=0) ) )
+
+  scores = W.T @ X.T
   probs = scores_exp/np.sum(scores_exp, axis=0)
-  
   dscores = probs
   dscores[y, range(num_train)] -= 1
-  
   dW = X.T.dot(dscores.T)
+
+
   dW /= num_train
   dW += reg * W
+    
+  loss /= num_train
+  loss += reg * np.sum(W * W)
   #print(np.sum(probs[:,0])) check if probs columns sum to 0
 
   
