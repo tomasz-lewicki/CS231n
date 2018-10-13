@@ -47,19 +47,22 @@ def softmax_loss_naive(W, X, y, reg):
   loss += reg * np.sum(W * W)
   scores = W.T @ X.T
 
-
   e = np.e
   scores_exp = e**scores
   probs = np.zeros_like(scores)
-    
+  
   for i in range(num_images):
     sum_of_all_scores = np.sum(scores_exp[:,i])
     probs[:, i] = scores_exp[:, i]/sum_of_all_scores
     
+    probs[y[i],i] -= 1
     dW += np.outer(X[i], probs[:,i])
-    print(np.zeros_like(dW) += 1)
-    #dW[y[i],i] -= 1
-    #print(np.sum(probs[:,i])) check if probabilites sum to 1
+
+    
+    #print(np.sum(probs[:,i])) #check if probabilites sum to 1
+ 
+  dW /= num_images
+  dW += reg*W # regularize the weights
 
   #############################################################################
   #                          END OF YOUR CODE                                 #
@@ -77,7 +80,23 @@ def softmax_loss_vectorized(W, X, y, reg):
   # Initialize the loss and gradient to zero.
   loss = 0.0
   dW = np.zeros_like(W)
+  num_train = X.shape[0]
+    
+  e = np.e
+  scores = W.T @ X.T
+  scores_exp = e**scores
+  probs = scores_exp/np.sum(scores_exp, axis=0)
+  
+  dscores = probs
+  dscores[y, range(num_train)] -= 1
+  
+  dW = X.T.dot(dscores.T)
+  dW /= num_train
+  dW += reg * W
+  #print(np.sum(probs[:,0])) check if probs columns sum to 0
 
+  
+  
   #############################################################################
   # TODO: Compute the softmax loss and its gradient using no explicit loops.  #
   # Store the loss in loss and the gradient in dW. If you are not careful     #
