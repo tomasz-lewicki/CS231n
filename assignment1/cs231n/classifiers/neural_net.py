@@ -96,7 +96,12 @@ class TwoLayerNet(object):
     # classifier loss.                                                          #
     #############################################################################
     e = np.e
-    scores_exp = e**scores
+    
+    #for numerical stability
+    constant = np.amax(scores, axis=1, keepdims=True)
+    #constant = [[0]]
+    scores_exp = e**(scores - constant) 
+    
     probs = scores_exp/np.sum(scores_exp, axis=1, keepdims=True)
     
     log_correct_probs = -np.log(probs[range(N), y])
