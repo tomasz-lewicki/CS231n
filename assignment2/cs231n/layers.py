@@ -25,7 +25,20 @@ def affine_forward(x, w, b):
     # TODO: Implement the affine forward pass. Store the result in out. You   #
     # will need to reshape the input into rows.                               #
     ###########################################################################
-    pass
+    N = x.shape[0]
+    
+    #The hideous way to do this:
+    #D = 1
+    #for s in range(1, len(x.shape)):
+    #    print(s)
+    #    D *= x.shape[s]
+    #    
+    #xr = np.reshape(x, (N,D))
+    
+    #or just use numpy built-in functionality 
+    xr = np.reshape(x, (N,-1))
+    
+    out = xr.dot(w) + b
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -40,10 +53,10 @@ def affine_backward(dout, cache):
     Inputs:
     - dout: Upstream derivative, of shape (N, M)
     - cache: Tuple of:
-      - x: Input data, of shape (N, d_1, ... d_k)
-      - w: Weights, of shape (D, M)
-      - b: Biases, of shape (M,)
-
+      - x: Input data, of shape (N, d_1, ... d_k) #(10, 2, 3)
+      - w: Weights, of shape (D, M) #(6, 5)
+      - b: Biases, of shape (M,) #(5,)
+      
     Returns a tuple of:
     - dx: Gradient with respect to x, of shape (N, d1, ..., d_k)
     - dw: Gradient with respect to w, of shape (D, M)
@@ -54,7 +67,19 @@ def affine_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the affine backward pass.                               #
     ###########################################################################
-    pass
+    
+    
+    pre_shape = x.shape
+    N = pre_shape[0]
+    D = w.shape[0]
+    x = np.reshape(x, (N, -1))
+    
+    dx = np.dot(dout, w.T)
+    dw = np.dot(x.T, dout)
+    db = np.sum(dout, axis=0, keepdims=True)
+    
+    dx = np.reshape(dx, pre_shape)
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -76,7 +101,11 @@ def relu_forward(x):
     ###########################################################################
     # TODO: Implement the ReLU forward pass.                                  #
     ###########################################################################
-    pass
+    
+    out = np. maximum(0, x) #imo that should be cached too
+    cache = x
+    
+    return out, cache
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -99,7 +128,10 @@ def relu_backward(dout, cache):
     ###########################################################################
     # TODO: Implement the ReLU backward pass.                                 #
     ###########################################################################
-    pass
+    scores = np.maximum(0, x) #i feel that should be cached
+    dx = dout
+    dx[scores == 0] = 0
+    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
