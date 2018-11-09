@@ -136,6 +136,107 @@ def relu_backward(dout, cache):
     ###########################################################################
     return dx
 
+def batchnorm_forward_copied(x, gamma, beta, bn_param):
+
+  eps = bn_param.get('eps', 1e-5)
+  N, D = x.shape
+
+  #step1: calculate mean
+  mu = 1./N * np.sum(x, axis = 0)
+
+  #step2: subtract mean vector of every trainings example
+  xmu = x - mu
+
+  #step3: following the lower branch - calculation denominator
+  sq = xmu ** 2
+
+  #step4: calculate variance
+  var = 1./N * np.sum(sq, axis = 0)
+
+  #step5: add eps for numerical stability, then sqrt
+  sqrtvar = np.sqrt(var + eps)
+
+  #step6: invert sqrtwar
+  ivar = 1./sqrtvar
+
+  #step7: execute normalization
+  xhat = xmu * ivar
+
+  #step8: Nor the two transformation steps
+  gammax = gamma * xhat
+
+  #step9
+  out = gammax + beta
+
+  #store intermediate
+  cache = (xhat,gamma,xmu,ivar,sqrtvar,var,eps)
+
+  return out, cache
+
+def batchnorm_backward_copied(dout, cache):
+
+  #unfold the variables stored in cache
+  xhat,gamma,xmu,ivar,sqrtvar,var,eps = cache
+
+  #get the dimensions of the input/output
+  N,D = dout.shape
+
+  #step9
+  dbeta = np.sum(dout, axis=0)
+  dgammax = dout #not necessary, but more understandable
+
+  #step8
+  dgamma = np.sum(dgammax*xhat, axis=0)
+  dxhat = dgammax * gamma
+
+  #step7
+  divar = np.sum(dxhat*xmu, axis=0)
+  dxmu1 = dxhat * ivar
+
+  #step6
+  dsqrtvar = -1. /(sqrtvar**2) * divar
+
+  #step5
+  dvar = 0.5 * 1. /np.sqrt(var+eps) * dsqrtvar
+
+  #step4
+  dsq = 1. /N * np.ones((N,D)) * dvar
+
+  #step3
+  dxmu2 = 2 * xmu * dsq
+  
+  #step2
+  dx1 = (dxmu1 + dxmu2)
+  dmu = -1 * np.sum(dxmu1+dxmu2, axis=0)
+  
+  #step1
+  dx2 = 1. /N * np.ones((N,D)) * dmu
+
+  #step0
+  dx = dx1 + dx2
+
+  print(dx1)
+
+  debug = {'dxmu1': dxmu1,
+           'dx': dx,
+           'dmu': dmu,
+           'dsq': dsq,
+           'dvar': dvar,
+           'dsqrtvar': dsqrtvar,
+           'divar': divar,
+           'dxmu1': dxmu1,
+           'dxhat': dxhat,
+           'dgamma': dgamma,
+           'dbeta': dbeta,
+           'dgammax': dgammax,
+           'dxmu2': dxmu2,
+           'dxmu1': dxmu1,
+           'dx1': dx1,
+           'dx2': dx2
+          }
+
+  return dx, dgamma, dbeta, debug
+
 
 def batchnorm_forward(x, gamma, beta, bn_param):
     """
@@ -183,7 +284,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     running_mean = bn_param.get('running_mean', np.zeros(D, dtype=x.dtype))
     running_var = bn_param.get('running_var', np.zeros(D, dtype=x.dtype))
 
-    out, cache = None, None
+    out, cache = None, {}
     if mode == 'train':
         #######################################################################
         # TODO: Implement the training-time forward pass for batch norm.      #
@@ -206,7 +307,54 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # Referencing the original paper (https://arxiv.org/abs/1502.03167)   #
         # might prove to be helpful.                                          #
         #######################################################################
-        pass
+        
+        #quick and without intermediates
+#         mean = np.mean(x, axis=0, keepdims=True)
+#         var = np.var(x, axis=0, keepdims=True)
+#         gamma = np.expand_dims(gamma, axis=0)
+#         x_norm = (x-mean)/np.sqrt(var+eps)      
+#         out = np.multiply(gamma, x_norm)
+#         out += beta
+
+        #S1
+        mean = np.mean(x, axis=0)
+        
+        #s2
+        dist = x - mean
+        
+        #s3
+        distsquared = dist ** 2
+        
+        #s4
+        var = np.sum(distsquared, axis=0)/N
+        
+        #s5
+        sqvar = np.sqrt(var+eps)
+        
+        #s5.5
+        invsqvar = 1/sqvar
+        
+        #BUG: numerator variable is the same as dist
+        #s6
+        #numerator = x - mean
+        
+        #s7
+        xnorm = dist * invsqvar
+        
+        #s8
+        iloczyn = xnorm * gamma
+        
+        #s9
+        out = iloczyn + beta
+        
+        cache = (mean, dist, distsquared, var, sqvar, invsqvar, xnorm, out, eps, gamma, beta)
+            
+        running_mean = momentum * running_mean + (1 - momentum) * mean
+        running_var = momentum * running_var + (1 - momentum) * var
+        bn_param['running_mean'] = running_mean
+        bn_param['running_var'] = running_var
+        
+        
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -217,7 +365,9 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        x_norm = (x-running_mean)/np.sqrt(running_var+eps)
+        out = np.multiply(gamma, x_norm)
+        out += beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -248,19 +398,103 @@ def batchnorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter gamma, of shape (D,)
     - dbeta: Gradient with respect to shift parameter beta, of shape (D,)
     """
-    dx, dgamma, dbeta = None, None, None
+    dL_dx = 0
+    debug = {}
     ###########################################################################
     # TODO: Implement the backward pass for batch normalization. Store the    #
     # results in the dx, dgamma, and dbeta variables.                         #
     # Referencing the original paper (https://arxiv.org/abs/1502.03167)       #
     # might prove to be helpful.                                              #
     ###########################################################################
-    pass
+    (mean, dist, distsquared, var, sqvar, invsqvar, xnorm, out, eps, gamma, beta) = cache
+    
+    N = dout.shape[0]
+    dL_dout = dout
+    
+    #s9 out = iloczyn + beta
+    dout_diloczyn = np.ones_like(out)
+    dout_dbeta = np.ones_like(beta)
+    
+    dL_dbeta = np.sum(dL_dout * dout_dbeta, axis=0) # (N,D)->(D,) !
+    dL_diloczyn = dL_dout * dout_diloczyn
+    
+    #s8 iloczyn = xnorm*gamma
+    diloczyn_dxnorm = gamma #BUG: stupid sumation here
+    diloczyn_dgamma = xnorm
+    
+    dL_dxnorm = dL_diloczyn * diloczyn_dxnorm
+    dL_dgamma = np.sum(dL_diloczyn * diloczyn_dgamma, axis=0) # (N,D)->(D,) !
+    
+    #s7 xnorm = dist * invsqvar
+    dnorm_ddist = invsqvar
+    dL_ddist = dL_dxnorm * dnorm_ddist
+    dL_dinvsqvar = np.sum(dL_dxnorm * dist, axis=0)# (N,D)->(D,) !
+    
+    
+    dL_ddist1 = dL_ddist
+    
+#       dxmu1 = dxhat * ivar
+#       #step3
+#       dxmu2 = 2 * xmu * dsq
+
+#       #step2
+#       dx1 = (dxmu1 + dxmu2)
+#       dmu = -1 * np.sum(dxmu1+dxmu2, axis=0)
+    
+    #s5.5 invsqvar = 1/sqvar
+    dinvsqvar_dsqvar = -1/(sqvar**2)
+    dL_dsqvar = dL_dinvsqvar * dinvsqvar_dsqvar
+    
+    #s5 sqvar = np.sqrt(var+eps)
+    dsvar_dvar = 1/(2*np.sqrt(var+eps))
+    dL_dvar = dL_dsqvar * dsvar_dvar
+    
+    #s4 var = np.sum(distsquared, axis=0)/N
+    dvar_ddistsquared = 1/N * np.ones_like(var) #BUG: stupid sumation
+    dL_ddistsquared = dL_dvar * dvar_ddistsquared
+    
+    #s3 distsquared = dist ** 2
+    ddistsquared_ddist = 2*dist
+    dL_ddist2 = dL_ddistsquared * ddistsquared_ddist
+    dL_ddist = dL_ddist1 + dL_ddist2  
+
+    #s2 dist = x - mean
+    
+    ddist_dx = np.ones_like(dist)
+    dmean_dx = - np.ones_like(dist)
+    
+    dL_dx += dL_ddist * ddist_dx
+    dL_dmean = np.sum(dL_ddist * dmean_dx, axis=0) #WHY?!
+        
+    #s1 mean = 1/N * np.sum(x, axis=0)
+    
+    dmean_dx = 1/N * np.ones_like(mean)
+    dL_dx += dL_dmean * dmean_dx
+    
+    #PHEW!
+    
+    debug = {'dL_dx': dL_dx,
+             'dL_dmean': dL_dmean,
+             'dL_ddist': dL_ddist,
+             'dL_ddistsquared': dL_ddistsquared,
+             'dL_dvar': dL_dvar,
+             'dL_dsqvar': dL_dsqvar,
+             'dL_dmean': dL_dmean,
+             'dL_dinvsqvar': dL_dinvsqvar,
+             'dL_dxnorm': dL_dxnorm,
+             'dL_dgamma': dL_dgamma,
+             'dL_dbeta': dL_dbeta,
+             'dL_dout': dL_dout,
+             'dL_diloczyn': dL_diloczyn,
+             'dL_ddist1': dL_ddist1,
+             'dL_ddist2': dL_ddist2
+            }
+             
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-
-    return dx, dgamma, dbeta
+    
+    return dL_dx, dL_dgamma, dL_dbeta, debug
 
 
 def batchnorm_backward_alt(dout, cache):
