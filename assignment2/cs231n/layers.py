@@ -20,11 +20,6 @@ def affine_forward(x, w, b):
     - out: output, of shape (N, M)
     - cache: (x, w, b)
     """
-    out = None
-    ###########################################################################
-    # TODO: Implement the affine forward pass. Store the result in out. You   #
-    # will need to reshape the input into rows.                               #
-    ###########################################################################
     N = x.shape[0]
     
     #The hideous way to do this:
@@ -34,14 +29,10 @@ def affine_forward(x, w, b):
     #    D *= x.shape[s]
     #    
     #xr = np.reshape(x, (N,D))
-    
-    #or just use numpy built-in functionality 
+    #or just use numpy built-in functionality
     xr = np.reshape(x, (N,-1))
     
     out = xr.dot(w) + b
-    ###########################################################################
-    #                             END OF YOUR CODE                            #
-    ###########################################################################
     cache = (x, w, b)
     return out, cache
 
@@ -136,43 +127,6 @@ def relu_backward(dout, cache):
     ###########################################################################
     return dx
 
-def batchnorm_forward_copied(x, gamma, beta, bn_param):
-
-  eps = bn_param.get('eps', 1e-5)
-  N, D = x.shape
-
-  #step1: calculate mean
-  mu = 1./N * np.sum(x, axis = 0)
-
-  #step2: subtract mean vector of every trainings example
-  xmu = x - mu
-
-  #step3: following the lower branch - calculation denominator
-  sq = xmu ** 2
-
-  #step4: calculate variance
-  var = 1./N * np.sum(sq, axis = 0)
-
-  #step5: add eps for numerical stability, then sqrt
-  sqrtvar = np.sqrt(var + eps)
-
-  #step6: invert sqrtwar
-  ivar = 1./sqrtvar
-
-  #step7: execute normalization
-  xhat = xmu * ivar
-
-  #step8: Nor the two transformation steps
-  gammax = gamma * xhat
-
-  #step9
-  out = gammax + beta
-
-  #store intermediate
-  cache = (xhat,gamma,xmu,ivar,sqrtvar,var,eps)
-
-  return out, cache
-
 def batchnorm_backward_copied(dout, cache):
 
   #unfold the variables stored in cache
@@ -214,8 +168,6 @@ def batchnorm_backward_copied(dout, cache):
 
   #step0
   dx = dx1 + dx2
-
-  print(dx1)
 
   debug = {'dxmu1': dxmu1,
            'dx': dx,
@@ -279,12 +231,13 @@ def batchnorm_forward(x, gamma, beta, bn_param):
     mode = bn_param['mode']
     eps = bn_param.get('eps', 1e-5)
     momentum = bn_param.get('momentum', 0.9)
-
-    N, D = x.shape
+    D = x.shape[1]
+    
     running_mean = bn_param.get('running_mean', np.zeros(D, dtype=x.dtype))
     running_var = bn_param.get('running_var', np.zeros(D, dtype=x.dtype))
-
-    out, cache = None, {}
+    
+    N, D = x.shape[0], x.shape[1]
+    
     if mode == 'train':
         #######################################################################
         # TODO: Implement the training-time forward pass for batch norm.      #
@@ -308,7 +261,7 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # might prove to be helpful.                                          #
         #######################################################################
         
-        #quick and without intermediates
+#         quick and without intermediates
 #         mean = np.mean(x, axis=0, keepdims=True)
 #         var = np.var(x, axis=0, keepdims=True)
 #         gamma = np.expand_dims(gamma, axis=0)
@@ -348,9 +301,10 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         out = iloczyn + beta
         
         cache = (mean, dist, distsquared, var, sqvar, invsqvar, xnorm, out, eps, gamma, beta)
-            
+        
         running_mean = momentum * running_mean + (1 - momentum) * mean
         running_var = momentum * running_var + (1 - momentum) * var
+        
         bn_param['running_mean'] = running_mean
         bn_param['running_var'] = running_var
         
@@ -368,15 +322,13 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         x_norm = (x-running_mean)/np.sqrt(running_var+eps)
         out = np.multiply(gamma, x_norm)
         out += beta
+        cache = (running_mean, running_var, gamma, beta, bn_param)
+    
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
     else:
         raise ValueError('Invalid forward batchnorm mode "%s"' % mode)
-
-    # Store the updated running means back into bn_param
-    bn_param['running_mean'] = running_mean
-    bn_param['running_var'] = running_var
 
     return out, cache
 
@@ -562,7 +514,36 @@ def layernorm_forward(x, gamma, beta, ln_param):
     # transformations you could perform, that would enable you to copy over   #
     # the batch norm code and leave it almost unchanged?                      #
     ###########################################################################
-    pass
+    
+    #Again, the easy way without steps
+#     mean = np.mean(x, axis=1, keepdims=True)
+#     var = np.var(x, axis=1, keepdims=True)
+#     gamma = np.expand_dims(gamma, axis=0)
+#     x_norm = (x-mean)/np.sqrt(var+eps)      
+#     out = np.multiply(gamma, x_norm)
+#     out += beta
+
+    D = x.shape[1]
+    #S1
+    mu = np.sum(x, axis=1, keepdims=True) / D
+    #S2
+    xmu = x - mu
+    #S3
+    sqs = xmu**2
+    #S4
+    var = np.sum(sqs, axis=1, keepdims=True) / D
+    #S5
+    sqrtvar = np.sqrt(var)
+    #S6
+    inv = 1/sqrtvar
+    #S7
+    xn = xmu*inv
+    #S8
+    xgamma = xn*gamma
+    #S9
+    out = xgamma + beta
+    
+    cache = (mu, xmu, sqs, var, sqrtvar, inv, xn, xgamma, out, beta, gamma)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -593,7 +574,33 @@ def layernorm_backward(dout, cache):
     # implementation of batch normalization. The hints to the forward pass    #
     # still apply!                                                            #
     ###########################################################################
-    pass
+    (mu, xmu, sqs, var, sqrtvar, inv, xn, xgamma, out, beta, gamma) = cache
+    
+    D = dout.shape[1]
+    
+    #s9
+    dbeta = np.sum(dout, axis=0)
+    #s8
+    dgamma = np.sum(xn * dout, axis=0)
+    #s7
+    dxn = gamma * dout
+    #s6
+    dinv = np.sum(xmu * dxn, axis=0) #axis=1?
+    #s5  
+    dsqrtvar = -1/(sqrtvar**2) * dinv
+    #s4
+    dvar = 0.5 / np.sqrt(var) * dsqrtvar
+    #s3
+    dsas  = 1 / D * np.ones_like(dout) * dvar
+    #s2
+    dxmu = 2*xmu * dsas
+    dxmu += dxn * inv
+    #s1
+    dx = np.ones_like(dout) * dxmu 
+    dmu = np.sum(dxmu, axis=0) #axis=1?
+    #s0
+    dx += np.ones_like(dout)/D * dmu
+    
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -621,7 +628,6 @@ def dropout_forward(x, dropout_param):
 
     NOTE: Please implement **inverted** dropout, not the vanilla version of dropout.
     See http://cs231n.github.io/neural-networks-2/#reg for more details.
-
     NOTE 2: Keep in mind that p is the probability of **keep** a neuron
     output; this might be contrary to some sources, where it is referred to
     as the probability of dropping a neuron output.
