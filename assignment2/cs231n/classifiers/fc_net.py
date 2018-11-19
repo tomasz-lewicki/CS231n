@@ -225,7 +225,7 @@ class FullyConnectedNet(object):
         # Cast all parameters to the correct datatype
         for k, v in self.params.items():
             self.params[k] = v.astype(dtype)
-
+    
 
     def loss(self, X, y=None):
         """
@@ -246,37 +246,44 @@ class FullyConnectedNet(object):
         
         if self.use_dropout:
             self.dropout_param['mode'] = mode
-        #When using dropout, you'll need to pass self.dropout_param to each dropout forward pass.    
-               
+        #When using dropout, you'll need to pass self.dropout_param to each dropout forward pass.
+        
         if self.normalization=='batchnorm':
             for bn_param in self.bn_params_list:
-                bn_param['mode'] = mode                                                
-        
+                bn_param['mode'] = mode 
+                        
         self.cache = {} #cache are the parameters for backprop
         
-        for i in range(self.L-1): #iterate over all layers but the output layer
-            
+        #iterate over ALL LAYERS but the output layer
+        for i in range(self.L-1):
+
             l = str(i+1) #layer no as string
             w = self.params['W'+l]
             b = self.params['b'+l]
-            
+
+            #BATCHNORM
             if self.normalization =='batchnorm':
                 gamma = self.params['gamma'+l]
                 beta = self.params['beta'+l]
-            
-            # Actual forward pass
-            if self.normalization =='batchnorm':
+                # Actual forward pass
                 x, self.cache['batchnorm'+l] = batchnorm_forward(x, gamma, beta, self.bn_params_list[i])
-                
-            x, self.cache['c'+l] = affine_relu_forward(x, w, b) #cache stored as c1, c2, etc.
 
-        #Forward pass for the BN before the last layer
+            #RELU
+            x, self.cache['c'+l] = affine_relu_forward(x, w, b) #cache stored as c1, c2, etc.
+            
+            #DROPOUT
+            if self.use_dropout:
+                x, self.cache['dropout'+l] = dropout_forward(x, self.dropout_param)
+
+
+        #LAST LAYER (sofmax instead of ReLU)
+        #BATCHNORM
         if self.normalization =='batchnorm':
             gamma = self.params['gamma'+str(self.L)]
             beta = self.params['beta'+str(self.L)]
             x, self.cache['batchnorm'+str(self.L)] = batchnorm_forward(x, gamma, beta, self.bn_params_list[self.L-1])
         
-        #Forward pass for the last layer
+        #fully connected
         lw, lb = self.params['W'+str(self.L)], self.params['b'+str(self.L)] #last layer's weights
         scores, self.cache['c'+str(self.L)] = affine_forward(x, lw, lb)
         
@@ -286,12 +293,12 @@ class FullyConnectedNet(object):
         
         # When using batch/layer normalization, you don't need to regularize the scale
         # and shift parameters
-        
         self.grads = {}
         grads = self.grads
         
         #compute loss
         loss, dscores = softmax_loss(scores, y)
+        
         
         #backpropagate through the last affine layer
         l=str(self.L)
@@ -303,11 +310,15 @@ class FullyConnectedNet(object):
         for i in range(self.L-1, 0, -1): #iterate over all layers but the output layer
             l = str(i) #layer no as string
             
+            #BACKPROP DROPOUT
+            if self.use_dropout:
+                dout = dropout_backward(dout, self.cache['dropout'+l])
+            
+            #BACKPROP AFFINE RELU
             dout, grads['W'+l], grads['b'+l] = affine_relu_backward(dout, self.cache['c'+l])
             
             if self.normalization =='batchnorm':
                 dout, grads['gamma'+l], grads['beta'+l], _ = batchnorm_backward(dout, self.cache['batchnorm'+l])
-        
         
         #L2 regularization
         reg_loss = 0
