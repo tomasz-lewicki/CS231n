@@ -699,8 +699,8 @@ def conv_forward_naive(x, w, b, conv_param):
     spans all C channels and has height HH and width WW.
 
     Input:
-    - x: Input data of shape (N, C, H, W)
-    - w: Filter weights of shape (F, C, HH, WW)
+    - x: Input data of shape (N, C, H, W) # (128, 3, 32, 32)
+    - w: Filter weights of shape (F, C, HH, WW) # (64, 3, 5, 5)
     - b: Biases, of shape (F,)
     - conv_param: A dictionary with the following keys:
       - 'stride': The number of pixels between adjacent receptive fields in the
@@ -718,12 +718,34 @@ def conv_forward_naive(x, w, b, conv_param):
       W' = 1 + (W + 2 * pad - WW) / stride
     - cache: (x, w, b, conv_param)
     """
-    out = None
+    
+    stride = conv_param['stride']
+    pad = conv_param['pad']
     ###########################################################################
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
     ###########################################################################
-    pass
+    npad = ((0,0), (0,0), (pad,pad), (pad,pad))
+    x = np.pad(x, npad, 'constant', constant_values=0)
+    
+    (N, _, Hpad, Wpad)= x.shape
+    (F, _, HH, WW) = w.shape
+    
+    out_h = int((Hpad - HH)/stride+1)
+    out_w = int((Wpad - WW)/stride+1)
+    out=np.zeros((N, F, out_h, out_w))
+    
+    for n in range(N):
+        im = x[n, :, :, :]
+        for f in range(F):
+            flt = w[f,:,:,:]
+            for hx in range(out_h):
+                for wx in range(out_w):
+                    sl = im[:, hx*stride:hx*stride+HH, wx*stride:wx*stride+WW]
+                    out[n, f, hx, wx] = np.sum(sl * flt) + b[f]
+                    
+            
+            
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
