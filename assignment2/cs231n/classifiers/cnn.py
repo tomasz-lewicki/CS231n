@@ -35,9 +35,45 @@ class ThreeLayerConvNet(object):
         - dtype: numpy datatype to use for computation.
         """
         self.params = {}
+        self.cache = {}
         self.reg = reg
         self.dtype = dtype
+        (C, H, W) = input_dim
+        
+        # input-conv-fc-fc-softmax
+        
+        #conv layer
+        self.params['W1'] = weight_scale * np.random.randn(num_filters, C, filter_size, filter_size) # for convolution
+        self.params['b1'] = np.zeros(num_filters)
+        #output from conv layer will be: (num, filters, h', w')
+        #Normally you should calculate the output dimension, but the assignment has an assumption that
+        #**the width and height of the input are preserved**
+        
+        #relu non-linearity (no parameters)
+        
+        #max_pool 2x2 layer
+        #input shape: (n) x (num_filters, H, W)
+        #no parameters to initialize
+        
+        #output size after maxpool:
+        pool_height=2
+        pool_width=2
+        pool_stride=2
+        
+        Ho = int((H-pool_height)/pool_stride + 1)
+        Wo = int((H-pool_width)/pool_stride +1)
+        
+        
+        #fully connected init
+        self.params['W2'] = weight_scale * np.random.randn(num_filters * Ho * Wo, hidden_dim)
+        self.params['b2'] = np.zeros(hidden_dim) #will it be flattened later?
+        #output will be of shape (hidden_dim, )
+        
+        #fully connected 2 init
+        self.params['W3'] = weight_scale * np.random.randn(hidden_dim, num_classes)
+        self.params['b3'] = np.zeros(num_classes)
 
+        
         ############################################################################
         # TODO: Initialize weights and biases for the three-layer convolutional    #
         # network. Weights should be initialized from a Gaussian centered at 0.0   #
@@ -53,11 +89,7 @@ class ThreeLayerConvNet(object):
         # **the width and height of the input are preserved**. Take a look at      #
         # the start of the loss() function to see how that happens.                #                           
         ############################################################################
-        pass
-        ############################################################################
-        #                             END OF YOUR CODE                             #
-        ############################################################################
-
+        
         for k, v in self.params.items():
             self.params[k] = v.astype(dtype)
 
@@ -68,10 +100,11 @@ class ThreeLayerConvNet(object):
 
         Input / output: Same API as TwoLayerNet in fc_net.py.
         """
+        N = X.shape[0]
         W1, b1 = self.params['W1'], self.params['b1']
         W2, b2 = self.params['W2'], self.params['b2']
         W3, b3 = self.params['W3'], self.params['b3']
-
+        loss = 0
         # pass conv_param to the forward pass for the convolutional layer
         # Padding and stride chosen to preserve the input spatial size
         filter_size = W1.shape[2]
@@ -81,6 +114,12 @@ class ThreeLayerConvNet(object):
         pool_param = {'pool_height': 2, 'pool_width': 2, 'stride': 2}
 
         scores = None
+        L1, self.cache['L1'] = conv_relu_pool_forward(X, W1, b1, conv_param, pool_param)
+        L1 = L1.reshape((N,-1))
+        print(L1.shape, W2.shape, b2.shape)
+        L2, self.cache['L2'] = affine_relu_forward(L1, W2, b2)
+        scores, self.cache['L3'] = affine_forward(L2, W3, b3)
+        
         ############################################################################
         # TODO: Implement the forward pass for the three-layer convolutional net,  #
         # computing the class scores for X and storing them in the scores          #
@@ -89,15 +128,12 @@ class ThreeLayerConvNet(object):
         # Remember you can use the functions defined in cs231n/fast_layers.py and  #
         # cs231n/layer_utils.py in your implementation (already imported).         #
         ############################################################################
-        pass
-        ############################################################################
-        #                             END OF YOUR CODE                             #
-        ############################################################################
 
         if y is None:
             return scores
 
         loss, grads = 0, {}
+        loss, grads['scores'] = softmax_loss(scores, y)
         ############################################################################
         # TODO: Implement the backward pass for the three-layer convolutional net, #
         # storing the loss and gradients in the loss and grads variables. Compute  #
