@@ -115,8 +115,6 @@ class ThreeLayerConvNet(object):
 
         scores = None
         L1, self.cache['L1'] = conv_relu_pool_forward(X, W1, b1, conv_param, pool_param)
-        L1 = L1.reshape((N,-1))
-        print(L1.shape, W2.shape, b2.shape)
         L2, self.cache['L2'] = affine_relu_forward(L1, W2, b2)
         scores, self.cache['L3'] = affine_forward(L2, W3, b3)
         
@@ -133,7 +131,18 @@ class ThreeLayerConvNet(object):
             return scores
 
         loss, grads = 0, {}
-        loss, grads['scores'] = softmax_loss(scores, y)
+        loss, dscores = softmax_loss(scores, y)
+        
+        
+        #regularization:
+        loss += self.reg * 0.5 * (np.sum(W1**2) + np.sum(W2**2) + np.sum(W3**2))
+        
+        #backward pass:
+        
+        dL2, grads['W3'], grads['b3'] = affine_backward(dout=dscores, cache=self.cache['L3'])
+        dL1, grads['W2'], grads['b2'] = affine_relu_backward(dout=dL2, cache=self.cache['L2'])
+        dX, grads['W1'], grads['b1'] = conv_relu_pool_backward(dout=dL1, cache=self.cache['L1'])
+        
         ############################################################################
         # TODO: Implement the backward pass for the three-layer convolutional net, #
         # storing the loss and gradients in the loss and grads variables. Compute  #
@@ -143,10 +152,6 @@ class ThreeLayerConvNet(object):
         # NOTE: To ensure that your implementation matches ours and you pass the   #
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
-        ############################################################################
-        pass
-        ############################################################################
-        #                             END OF YOUR CODE                             #
         ############################################################################
 
         return loss, grads
